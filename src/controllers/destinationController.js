@@ -1,39 +1,42 @@
-// Date pentru testare - Mock Data
-const destinations = [
-  {
-    id: 1,
-    country: "Italia",
-    description: "Patria pastelor si a istoriei romane",
-    cities: ["Roma", "Milano", "Veneția", "Florenta"]
-  },
-  {
-    id: 2,
-    country: "Franța",
-    description: "Romantism, moda si arta",
-    cities: ["Paris", "Lyon", "Nisa"]
-  },
-  {
-    id: 3,
-    country: "Japonia",
-    description: "Unde traditia intalneste viitorul",
-    cities: ["Tokyo", "Kyoto", "Osaka"]
-  }
-];
+const db = require('../config/db');
 
-exports.getAllDestinations = (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    results: destinations.length,
-    data: { destinations }
-  });
+exports.getAllDestinations = async (req, res) => {
+  try {
+    const snapshot = await db.collection('destinations').get();
+    const destinations = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      destinations.push({ id: doc.id, ...data });
+    });
+    res.status(200).json({ status: 'success', data: { destinations } });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
 };
-exports.createDestination = (req, res) => {
-  const newId = destinations.length + 1;
-  const newDestination = Object.assign({ id: newId }, req.body);
-  destinations.push(newDestination);
-  res.status(201).json({
-    status: 'success',
-    message: 'Destinație adăugată temporar!',
-    data: { destination: newDestination }
-  });
+
+exports.createDestination = async (req, res) => {
+  try {
+    const newDoc = await db.collection('destinations').add(req.body);
+    res.status(201).json({ status: 'success', data: { id: newDoc.id, ...req.body } });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+exports.getDestinationById = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const doc = await db.collection('destinations').doc(id).get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ status: 'fail', message: 'Destinația nu a fost găsită' });
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: { id: doc.id, ...doc.data() }
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'error', message: error.message });
+  }
 };

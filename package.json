@@ -17,11 +17,13 @@
   "author": "Ducu Daria Mihaela",
   "license": "ISC",
   "dependencies": {
+    "@faker-js/faker": "^9.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "firebase-admin": "^13.6.0",
     "helmet": "^7.2.0",
+    "html2pdf.js": "^0.13.0",
     "morgan": "^1.10.1"
   },
   "devDependencies": {
