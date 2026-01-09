@@ -1,25 +1,42 @@
 <script setup>
 import { ref } from 'vue';
-import { useAuthStore } from '../stores/auth'; 
+import { useAuthStore } from '../stores/auth';
 import { useRouter } from 'vue-router';
 
+const name = ref('');
 const email = ref('');
 const password = ref('');
-const isLoading = ref(false); 
-const errorMessage = ref(''); 
+const confirmPassword = ref('');
+const isLoading = ref(false);
+const errorMessage = ref('');
 
 const authStore = useAuthStore();
 const router = useRouter();
 
-const handleLogin = async () => {
+const handleRegister = async () => {
   errorMessage.value = '';
+
+  if (password.value !== confirmPassword.value) {
+    errorMessage.value = 'Parolele nu coincid!';
+    return;
+  }
+
+  if (password.value.length < 6) {
+    errorMessage.value = 'Parola trebuie să aibă minim 6 caractere.';
+    return;
+  }
+
   isLoading.value = true;
 
   try {
-    await authStore.login(email.value, password.value);
-    router.push('/'); 
+    await authStore.register(email.value, password.value);
+    router.push('/');
   } catch (error) {
-    errorMessage.value = error.message;
+    if (error.message.includes('email-already-in-use')) {
+      errorMessage.value = 'Acest email este deja folosit.';
+    } else {
+      errorMessage.value = error.message;
+    }
   } finally {
     isLoading.value = false;
   }
@@ -27,13 +44,22 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <h1 class="title">Bine ai revenit!</h1>
-      <p class="subtitle">Loghează-te pentru a-ți vedea planurile de călătorie.</p>
+  <div class="register-page">
+    <div class="register-card">
+      <h1 class="title">Creează cont nou</h1>
+      <p class="subtitle">Începe aventura ta cu Wanderlust!</p>
 
-      <form @submit.prevent="handleLogin" class="login-form">
+      <form @submit.prevent="handleRegister" class="register-form">
         
+        <div class="form-group">
+          <label>Numele tău</label>
+          <input 
+            v-model="name" 
+            type="text" 
+            placeholder="Ex: Daria Ducu" 
+          />
+        </div>
+
         <div class="form-group">
           <label>Email</label>
           <input 
@@ -49,7 +75,17 @@ const handleLogin = async () => {
           <input 
             v-model="password" 
             type="password" 
-            placeholder="••••••••" 
+            placeholder="Minim 6 caractere" 
+            required 
+          />
+        </div>
+
+        <div class="form-group">
+          <label>Confirmă parola</label>
+          <input 
+            v-model="confirmPassword" 
+            type="password" 
+            placeholder="Repetă parola" 
             required 
           />
         </div>
@@ -58,15 +94,14 @@ const handleLogin = async () => {
           ⚠️ {{ errorMessage }}
         </div>
 
-        <button type="submit" class="btn-login" :disabled="isLoading">
-          {{ isLoading ? 'Se verifică...' : 'Intră în cont' }}
+        <button type="submit" class="btn-register" :disabled="isLoading">
+          {{ isLoading ? 'Se creează contul...' : 'Înregistrează-te' }}
         </button>
 
       </form>
 
       <div class="footer-links">
-        <p>Nu ai cont? <RouterLink to="/register" class="link-accent">Înregistrează-te</RouterLink></p>
-        <RouterLink to="/" class="btn-back">← Înapoi la Dashboard</RouterLink>
+        <p>Ai deja un cont? <RouterLink to="/login" class="link-accent">Loghează-te aici</RouterLink></p>
       </div>
     </div>
   </div>
@@ -75,23 +110,23 @@ const handleLogin = async () => {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
-.login-page {
+.register-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f0f4f8; /* Un gri-albăstrui deschis */
+  background-color: #f0f4f8;
   font-family: 'Poppins', sans-serif;
   padding: 20px;
 }
 
-.login-card {
+.register-card {
   background: white;
   padding: 40px;
   border-radius: 20px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.05);
   width: 100%;
-  max-width: 400px;
+  max-width: 450px; 
   text-align: center;
 }
 
@@ -104,11 +139,11 @@ const handleLogin = async () => {
 .subtitle {
   color: #7f8c8d;
   font-size: 0.9rem;
-  margin-bottom: 30px;
+  margin-bottom: 25px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   text-align: left;
 }
 
@@ -128,17 +163,17 @@ input {
   font-size: 1rem;
   outline: none;
   transition: border-color 0.3s;
-  box-sizing: border-box; /* Important pentru a nu depăși containerul */
+  box-sizing: border-box;
 }
 
 input:focus {
-  border-color: #3498db;
+  border-color: #2ecc71;
 }
 
-.btn-login {
+.btn-register {
   width: 100%;
   padding: 12px;
-  background-color: #3498db;
+  background-color: #2ecc71; 
   color: white;
   border: none;
   border-radius: 8px;
@@ -146,14 +181,14 @@ input:focus {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.3s;
-  margin-top: 10px;
+  margin-top: 15px;
 }
 
-.btn-login:hover:not(:disabled) {
-  background-color: #2980b9;
+.btn-register:hover:not(:disabled) {
+  background-color: #27ae60;
 }
 
-.btn-login:disabled {
+.btn-register:disabled {
   background-color: #95a5a6;
   cursor: not-allowed;
 }
@@ -175,19 +210,8 @@ input:focus {
 }
 
 .link-accent {
-  color: #3498db;
+  color: #2ecc71;
   font-weight: 600;
   text-decoration: none;
-}
-
-.btn-back {
-  display: block;
-  margin-top: 15px;
-  color: #95a5a6;
-  text-decoration: none;
-  font-size: 0.85rem;
-}
-.btn-back:hover {
-  color: #7f8c8d;
 }
 </style>

@@ -9,7 +9,7 @@ const store = useTripStore()
 
     <div v-if="store.items.length === 0" class="empty-state">
       <p>Nu ai adăugat nimic încă.</p>
-      <RouterLink to="/" class="btn-back">Mergi la Destinații</RouterLink>
+      <RouterLink to="/" class="btn-back">Mergi la destinații</RouterLink>
     </div>
 
     <div v-else>
@@ -22,7 +22,7 @@ const store = useTripStore()
         <div v-for="(item, index) in store.items" :key="item.id" class="item-card">
           <div class="info">
             <h3>{{ item.name }}</h3>
-            <p> {{ item.city }}, {{ item.country }}</p>
+            <p>📍 {{ item.city }}, {{ item.country }}</p>
           </div>
           <div class="actions">
             <span class="price">{{ item.price }} €</span>

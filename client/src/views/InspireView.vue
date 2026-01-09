@@ -9,13 +9,11 @@ const surpriseMe = async () => {
   suggestion.value = null
   
   try {
-    // Luăm toate destinațiile
     const res = await fetch('http://localhost:3000/api/destinations')
     const json = await res.json()
     const all = json.data.destinations
     
     setTimeout(() => {
-      // Alegem una random
       const random = all[Math.floor(Math.random() * all.length)]
       suggestion.value = random
       loading.value = false
@@ -31,7 +29,7 @@ const surpriseMe = async () => {
 <template>
   <div class="inspire-container">
     <h1>Nu știi unde să mergi? </h1>
-    <p>Lasă destinul să aleagă următoarea ta aventură!</p>
+    <p>Lasă-ne să alegem următoarea ta aventură!</p>
 
     <div class="action-area">
       <button @click="surpriseMe" class="magic-btn" :disabled="loading">
@@ -48,7 +46,7 @@ const surpriseMe = async () => {
         <h2>{{ suggestion.country }}</h2>
         <p>{{ suggestion.cities[0].name }} te așteaptă!</p>
         <div class="ticket-footer">
-          <span>Clasa: Business</span>
+          <span>Clasa: AVENTURĂ</span>
           <RouterLink :to="'/destination/' + suggestion.id" class="btn-go">Vezi Detalii &rarr;</RouterLink>
         </div>
       </div>

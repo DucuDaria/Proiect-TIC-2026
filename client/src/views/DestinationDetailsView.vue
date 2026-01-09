@@ -43,9 +43,9 @@ const confirmSelection = () => {
 
   const conflict = tripStore.checkConflict(selectedTime.value)
   if (conflict) {
-    // AFIȘĂM EROAREA ÎN FEREASTRĂ (NU ALERT)
+
     errorMessage.value = `Ora ocupată! Ai deja "${conflict.name}" la ${selectedTime.value}.`
-    return // Oprim funcția, fereastra RĂMÂNE DESCHISĂ
+    return 
   }
 
 
@@ -86,7 +86,7 @@ onMounted(async () => {
         <input type="time" v-model="selectedTime" class="big-time-input" />
 
         <div v-if="errorMessage" class="error-box">
-          ⛔ {{ errorMessage }}
+           {{ errorMessage }}
         </div>
         
         <div class="modal-actions">

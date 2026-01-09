@@ -1,28 +1,28 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
+import { useAuthStore } from './auth' 
+import { auth } from '../firebaseConfig' 
 
 export const useTripStore = defineStore('trip', () => {
   const currentDay = ref(1)
-  const currentTrip = ref({ 1: [] })
-  const savedVacations = ref([])
-  const stored = localStorage.getItem('my_vacations')
-  if (stored) savedVacations.value = JSON.parse(stored)
-  watch(savedVacations, (newVal) => {
-    localStorage.setItem('my_vacations', JSON.stringify(newVal))
-  }, { deep: true })
-
+  const currentTrip = ref({ 1: [] }) 
+  const isLoading = ref(false)
   const itemsInCurrentDay = computed(() => currentTrip.value[currentDay.value] || [])
-
-  function checkConflict(time) {
-    const dayList = currentTrip.value[currentDay.value] || []
-    return dayList.find(item => item.time === time)
-  }
+  const items = computed(() => Object.values(currentTrip.value).flat())
+  
+  const totalPrice = computed(() => {
+    return items.value.reduce((sum, item) => sum + item.price, 0)
+  })
 
   function addToItinerary(attraction, city, country, time) {
     if (!currentTrip.value[currentDay.value]) {
       currentTrip.value[currentDay.value] = []
     }
     const dayList = currentTrip.value[currentDay.value]
+    
+    if (dayList.find(i => i.time === time)) {
+        return { success: false, message: `Ora ${time} este deja ocupată!` };
+    }
 
     dayList.push({
       id: Date.now(),
@@ -30,10 +30,12 @@ export const useTripStore = defineStore('trip', () => {
       price: attraction.price,
       city: city,
       country: country,
-      time: time
+      time: time,
+      day: currentDay.value 
     })
     
     dayList.sort((a, b) => a.time.localeCompare(b.time))
+    return { success: true }
   }
 
   function nextDay() {
@@ -44,35 +46,82 @@ export const useTripStore = defineStore('trip', () => {
   }
 
   function removeFromCurrentDay(index) {
-    currentTrip.value[currentDay.value].splice(index, 1)
+    const day = currentDay.value
+    if (currentTrip.value[day]) {
+      currentTrip.value[day].splice(index, 1)
+    }
   }
 
-  function saveTrip() {
-    const allItems = Object.values(currentTrip.value).flat()
+  function removeFromItinerary(indexInFlatList) {
+    const itemToRemove = items.value[indexInFlatList];
+    if(!itemToRemove) return;
+
+    for (const [day, list] of Object.entries(currentTrip.value)) {
+        const idx = list.findIndex(i => i.id === itemToRemove.id);
+        if (idx !== -1) {
+            list.splice(idx, 1);
+            break;
+        }
+    }
+  }
+
+  function checkConflict(time) {
+      const dayList = currentTrip.value[currentDay.value] || []
+      return dayList.find(item => item.time === time)
+  }
+
+  async function saveTrip() { 
+    const authStore = useAuthStore()
+    const allItems = items.value
     
-    if (allItems.length === 0) return 
+    if (allItems.length === 0) {
+        return { success: false, message: "Itinerariul este gol." };
+    }
 
-    const grandTotal = allItems.reduce((sum, item) => sum + item.price, 0)
-    const primaryCountry = allItems[0].country
+    isLoading.value = true
 
-    savedVacations.value.push({
-      id: Date.now(),
-      name: `Vacanța #${savedVacations.value.length + 1}`,
-      country: primaryCountry,
-      totalPrice: grandTotal,
-      itinerary: JSON.parse(JSON.stringify(currentTrip.value)),
-      totalDays: currentDay.value,
-    
-      notes: '',       
-      guests: 1        
-    })
+    try {
+      let token = authStore.token;
+      if (!token && auth.currentUser) {
+          token = await auth.currentUser.getIdToken(true);
+      } else if (!token) {
+          return { success: false, message: "Nu ești autentificat." };
+      }
 
-    currentTrip.value = { 1: [] }
-    currentDay.value = 1
+      const payload = {
+        country: allItems[0].country || "Circuit", 
+        totalPrice: totalPrice.value,
+        totalDays: currentDay.value,
+        itinerary: currentTrip.value, 
+        notes: ""
+      };
+
+      const response = await fetch('http://localhost:3000/api/destinations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) throw new Error("Eroare server");
+
+      currentTrip.value = { 1: [] };
+      currentDay.value = 1;
+ 
+      return { success: true };
+
+    } catch (error) {
+      console.error(error);
+      return { success: false, message: error.message };
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   return { 
-    currentDay, currentTrip, itemsInCurrentDay, savedVacations, 
-    checkConflict, addToItinerary, removeFromCurrentDay, nextDay, saveTrip 
+    currentDay, currentTrip, itemsInCurrentDay, items, totalPrice, isLoading,
+    addToItinerary, removeFromCurrentDay, removeFromItinerary, nextDay, checkConflict, saveTrip 
   }
 })

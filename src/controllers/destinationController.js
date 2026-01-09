@@ -1,28 +1,64 @@
 const db = require('../config/db');
-
 exports.getAllDestinations = async (req, res) => {
   try {
     const snapshot = await db.collection('destinations').get();
     const destinations = [];
+    
     snapshot.forEach(doc => {
       const data = doc.data();
-      destinations.push({ id: doc.id, ...data });
+      if (!data.userId) { 
+        destinations.push({ id: doc.id, ...data });
+      }
     });
+
     res.status(200).json({ status: 'success', data: { destinations } });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
   }
 };
-
-exports.createDestination = async (req, res) => {
+exports.getMyDestinations = async (req, res) => {
   try {
-    const newDoc = await db.collection('destinations').add(req.body);
-    res.status(201).json({ status: 'success', data: { id: newDoc.id, ...req.body } });
-  } catch (error) {
-    res.status(500).json({ status: 'error', message: error.message });
+    const userId = req.user.uid; 
+    const snapshot = await db.collection('destinations')
+      .where('userId', '==', userId)
+      .get();
+
+    const myVacations = [];
+    snapshot.forEach(doc => {
+      myVacations.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: myVacations
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
+exports.createDestination = async (req, res) => {
+  try {
+    if (!req.user || !req.user.uid) {
+        return res.status(401).json({ message: "Utilizator neautentificat" });
+    }
 
+    const newDestinationData = {
+      ...req.body,           
+      userId: req.user.uid,   
+      createdAt: new Date().toISOString()
+    };
+
+    const docRef = await db.collection('destinations').add(newDestinationData);
+
+    res.status(201).json({
+      status: 'success',
+      data: { id: docRef.id, ...newDestinationData }
+    });
+
+  } catch (err) {
+    res.status(400).json({ status: 'fail', message: err.message });
+  }
+};
 exports.getDestinationById = async (req, res) => {
   try {
     const id = req.params.id;

@@ -1,10 +1,37 @@
 <script setup>
-import { ref } from 'vue'
-import { useTripStore } from '../stores/tripStore'
+import { ref, onMounted } from 'vue'
+import { useAuthStore } from '../stores/auth'
 import html2pdf from 'html2pdf.js'
 
-const store = useTripStore()
-const isGenerating = ref(false)
+const vacations = ref([]);
+const isLoading = ref(true);
+const isGenerating = ref(false);
+const authStore = useAuthStore();
+
+const fetchMyVacations = async () => {
+  try {
+    const response = await fetch('http://localhost:3000/api/destinations/my-vacations', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authStore.token}` 
+      }
+    });
+
+    if (!response.ok) throw new Error("Eroare la încărcare");
+    
+    const result = await response.json();
+    vacations.value = result.data.reverse(); 
+  } catch (error) {
+    console.error(error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchMyVacations();
+});
 
 const exportToPDF = (trip) => {
   isGenerating.value = true
@@ -12,8 +39,8 @@ const exportToPDF = (trip) => {
   
   const opt = {
     margin:       10,
-    filename:     `Jurnal_Calatorie_${trip.country}.pdf`,
-    image:        { type: 'jpeg', quality: 0.99 }, // Calitate maximă pentru culori
+    filename:     `Jurnal_${trip.country}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
     jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
@@ -27,33 +54,37 @@ const exportToPDF = (trip) => {
 <template>
   <div class="page-container">
     <div class="header-section">
-      <h1 class="page-title"> Jurnalul de călătorie</h1>
-      <p class="subtitle">Planurile tale de vacanță, acum într-un singur loc.</p>
+      <h1 class="page-title">Jurnal de călătorie ✈️</h1>
+      <p class="subtitle">Toate aventurile tale, într-un singur loc.</p>
     </div>
 
-    <div v-if="store.savedVacations.length === 0" class="empty-state">
-      <div class="empty-icon"></div>
+    <div v-if="isLoading" class="empty-state">
+      <h3>Se încarcă vacanțele...</h3>
+    </div>
+
+    <div v-else-if="vacations.length === 0" class="empty-state">
+      <div class="empty-icon">🧳</div>
       <h3>Încă nu ai nicio aventură planificată.</h3>
-      <RouterLink to="/" class="btn-start">Începe Aventura</RouterLink>
+      <RouterLink to="/inspire" class="btn-start">Inspiră-mă</RouterLink>
     </div>
 
     <div v-else class="vacations-list">
-      <div v-for="trip in store.savedVacations" :key="trip.id" class="trip-wrapper">
+      <div v-for="trip in vacations" :key="trip.id" class="trip-wrapper">
         
         <div :id="`trip-card-${trip.id}`" class="printable-area aesthetic-card">
           
           <div class="ticket-header-gradient">
             <div class="header-content-overlay">
               <div class="logo-area">
-                <span class="brand-icon"></span>
+                <span class="brand-icon">✈️</span>
                 <div>
                     <span class="brand-name">WANDERLUST</span>
-                    <span class="brand-sub">Travel Journal</span>
+                    <span class="brand-sub">Travel journal</span>
                 </div>
               </div>
               <div class="ticket-meta">
                 <span class="meta-label">BOOKING ID</span>
-                <span class="meta-value">#{{ trip.id.toString().slice(-6) }}</span>
+                <span class="meta-value">#{{ trip.id.toString().slice(0, 6).toUpperCase() }}</span>
               </div>
             </div>
           </div>
@@ -72,17 +103,17 @@ const exportToPDF = (trip) => {
             </div>
             <div class="price-row">
               <div class="price-item">
-                <span class="p-type"> Solo</span>
-                <span class="p-val highlight-blue">{{ trip.totalPrice.toFixed(0) }} €</span>
+                <span class="p-type">Solo</span>
+                <span class="p-val highlight-blue">{{ trip.totalPrice }} €</span>
               </div>
               <div class="divider"></div>
               <div class="price-item">
-                <span class="p-type"> Cuplu</span>
+                <span class="p-type">Cuplu</span>
                 <span class="p-val">{{ (trip.totalPrice * 2).toFixed(0) }} €</span>
               </div>
               <div class="divider"></div>
               <div class="price-item">
-                <span class="p-type"> Familie (4)</span>
+                <span class="p-type">Familie (4)</span>
                 <span class="p-val">{{ (trip.totalPrice * 4).toFixed(0) }} €</span>
               </div>
             </div>
@@ -101,7 +132,7 @@ const exportToPDF = (trip) => {
                     <div class="time-col">{{ item.time }}</div>
                     <div class="event-col">
                       <div class="event-name">{{ item.name }}</div>
-                      <div class="event-city"> {{ item.city }}</div>
+                      <div class="event-city">📍 {{ item.city }}</div>
                     </div>
                     <div class="price-col">
                         <span class="price-tag-pill">{{ item.price }} €</span>
@@ -113,24 +144,24 @@ const exportToPDF = (trip) => {
           </div>
 
           <div class="notes-wrapper">
-            <div class="section-header-small">Note și detalii</div>
+            <div class="section-header-small">Jurnal și notițe personale</div>
             <div class="aesthetic-notes-box">
-              <textarea 
-                v-model="trip.notes" 
-                placeholder="Nu uita să..." 
-                class="notes-input"
-              ></textarea>
+               <textarea 
+                  v-model="trip.notes" 
+                  class="pdf-editable-textarea"
+                  placeholder="Scrie aici... (ex: Zbor la ora 14:00, Nu uita pașaportul!)"
+               ></textarea>
             </div>
           </div>
 
           <div class="doc-footer-styled">
-            Created by Wanderlust 
+            Generat de Wanderlust Planner pentru {{ authStore.user?.email }} 
           </div>
         </div>
 
         <div class="actions-row">
           <button @click="exportToPDF(trip)" class="btn-pdf-gradient" :disabled="isGenerating">
-            {{ isGenerating ? ' Se generează PDF...' : 'Descarcă PDF ' }}
+            {{ isGenerating ? 'Se generează...' : 'Descarcă PDF' }}
           </button>
         </div>
 
@@ -148,26 +179,24 @@ const exportToPDF = (trip) => {
     padding: 40px 20px; 
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
     color: #333; 
-    background-color: #f4f7f9; /* Fundal pagină ușor gri-albăstrui */
+    background-color: #f4f7f9; 
 }
 .header-section { text-align: center; margin-bottom: 40px; }
-.page-title { font-weight: 700; color: #2c3e50; margin: 0; font-size: 2.2rem; letter-spacing: -0.5px; }
-.subtitle { color: #607d8b; margin-top: 5px; font-size: 1rem; }
+.page-title { font-weight: 700; color: #2c3e50; font-size: 2.2rem; margin: 0; }
+.subtitle { color: #607d8b; margin-top: 5px; }
 
 .trip-wrapper { margin-bottom: 60px; }
-
 .aesthetic-card {
   background: white;
   border-radius: 16px; 
   box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
   overflow: hidden;
   position: relative;
-  border: none; /* Scoatem bordura simplă */
+  border: none;
 }
 
-
 .ticket-header-gradient {
-  background: linear-gradient(135deg, #006266, #00a8ff);
+  background: linear-gradient(135deg, #006266, #00a8ff); /* Gradient colorat */
   color: white; 
   padding: 25px 40px;
   position: relative;
@@ -176,8 +205,9 @@ const exportToPDF = (trip) => {
 .ticket-header-gradient::before {
     content: '';
     position: absolute; top:0; left:0; right:0; bottom:0;
-    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'%3E%3Ccircle cx='3' cy='3' r='3'/%3E%3Ccircle cx='13' cy='13' r='3'/%3E%3C/g%3E%3C/svg%3E");
-    opacity: 0.3;
+    background-image: radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+    background-size: 10px 10px;
+    opacity: 0.5;
 }
 
 .header-content-overlay {
@@ -194,50 +224,32 @@ const exportToPDF = (trip) => {
 
 .ticket-meta { text-align: right; }
 .meta-label { display: block; font-size: 0.65rem; opacity: 0.7; letter-spacing: 1px; text-transform: uppercase; }
-.meta-value { font-family: 'Poppins', monospace; font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; }
+.meta-value { font-family: monospace; font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; }
 
-
-.trip-hero {
-  padding: 30px 40px 25px; 
-}
+.trip-hero { padding: 30px 40px 20px; }
 .destination-title { 
-  font-size: 3rem; 
-  margin: 0 0 15px 0; 
-  color: #2c3e50; 
-  text-transform: uppercase; 
-  letter-spacing: -1.5px; 
-  font-weight: 800;
-  line-height: 1;
+  font-size: 3rem; margin: 0 0 10px 0; color: #2c3e50; 
+  text-transform: uppercase; letter-spacing: -1.5px; font-weight: 800;
   background: -webkit-linear-gradient(45deg, #2c3e50, #3498db);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .trip-info-row { display: flex; gap: 12px; }
 .info-badge { 
-  font-size: 0.85rem; 
-  padding: 6px 14px; 
-  border-radius: 20px; 
-  font-weight: 600;
-  display: inline-flex; align-items: center;
+  font-size: 0.85rem; padding: 6px 14px; border-radius: 20px; font-weight: 600;
 }
 .blue-badge { background: #e3f2fd; color: #1565c0; }
 .green-badge { background: #e8f5e9; color: #2e7d32; }
 
+
 .price-compact-section {
-  margin: 0 40px 30px; 
-  padding: 15px 25px;
-  background-color: #f8f9fa; 
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  margin: 0 40px 30px; padding: 15px 25px;
+  background-color: #f8f9fa; border-radius: 12px;
+  display: flex; align-items: center; justify-content: space-between;
   border: 1px solid #edf2f7;
 }
-.price-label-box {
-  font-size: 0.75rem; font-weight: 700; color: #607d8b; letter-spacing: 0.5px; text-transform: uppercase; display: flex; align-items: center;
-}
-.price-icon { font-size: 1rem; margin-right: 5px; }
-
+.price-label-box { font-size: 0.75rem; font-weight: 700; color: #607d8b; text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
+.price-icon { font-size: 1.2rem; }
 .price-row { display: flex; align-items: center; gap: 25px; }
 .price-item { display: flex; flex-direction: column; align-items: flex-end; }
 .p-type { font-size: 0.75rem; color: #90a4ae; margin-bottom: 2px; font-weight: 500; }
@@ -245,77 +257,73 @@ const exportToPDF = (trip) => {
 .highlight-blue { color: #00a8ff; } 
 .divider { width: 1px; height: 30px; background: #e0e0e0; }
 
+.itinerary-section { padding: 0 40px 20px; }
+.day-container { margin-bottom: 25px; }
+.day-header-styled { display: flex; align-items: center; margin-bottom: 15px; }
+.day-number { font-size: 0.9rem; font-weight: 700; color: #00a8ff; margin-right: 15px; white-space: nowrap; }
+.day-line { height: 2px; background: #e3f2fd; flex-grow: 1; }
 
-.itinerary-section { padding: 0 40px 30px; }
-.day-container { margin-bottom: 35px; }
-
-
-.day-header-styled {
-    display: flex; align-items: center; margin-bottom: 15px;
-}
-.day-number {
-  font-size: 0.9rem; font-weight: 700; color: #00a8ff; 
-  text-transform: uppercase; margin-right: 15px; white-space: nowrap;
-}
-.day-line { height: 2px; background: #e3f2fd; flex-grow: 1; border-radius: 2px; }
-
-.timeline { display: flex; flex-direction: column; gap: 12px; }
 .timeline-item { 
-  display: flex; align-items: center; 
-  padding: 12px;
-  background: white; border-radius: 8px;
-  border: 1px solid #f0f0f0; /* Chenar foarte fin */
-  transition: box-shadow 0.2s;
+  display: flex; align-items: center; padding: 10px;
+  background: white; border-bottom: 1px solid #f0f0f0; 
 }
-
 .time-col { width: 60px; font-size: 0.9rem; color: #607d8b; font-weight: 600; }
 .event-col { flex-grow: 1; padding-right: 15px; }
-.event-name { font-weight: 600; font-size: 1rem; color: #2c3e50; margin-bottom: 3px;}
+.event-name { font-weight: 600; font-size: 1rem; color: #2c3e50; }
 .event-city { font-size: 0.85rem; color: #90a4ae; }
+.price-tag-pill { background: #e0f7fa; color: #0097a7; font-weight: 700; font-size: 0.85rem; padding: 4px 10px; border-radius: 12px; }
 
-.price-col { text-align: right; }
-.price-tag-pill {
-    background: #e0f7fa; color: #0097a7; font-weight: 700; font-size: 0.85rem;
-    padding: 4px 10px; border-radius: 12px;
-}
-
-.notes-wrapper { padding: 0 40px 40px; }
-
+.notes-wrapper { padding: 0 40px 40px; page-break-inside: avoid; }
 .section-header-small { 
-  font-size: 0.75rem; 
-  font-weight: 700; 
-  color: #546e7a; 
-  margin-bottom: 12px; 
-  letter-spacing: 1px; 
-  text-transform: uppercase; 
+  font-size: 0.75rem; font-weight: 700; color: #546e7a; 
+  margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; 
 }
-
 .aesthetic-notes-box {
-  background: #e0f7fa; 
-  border: 2px solid #80deea; 
-  padding: 20px;
+  background: #fff; 
+  border: 2px solid #80deea; /* Chenar colorat */
+  padding: 0; 
   border-radius: 12px;
+  overflow: hidden;
+  background-color: #e0f7fa; /* Fundal ușor colorat */
 }
-.notes-input {
-  width: 100%; height: 80px; border: none; background: transparent;
-  font-family: 'Poppins', sans-serif; font-size: 0.95rem; color: #5d4037; resize: none; outline: none;
-  line-height: 1.5;
+
+.pdf-editable-textarea {
+  width: 100%;
+  min-height: 120px;
+  border: none;
+  padding: 15px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  color: #2c3e50;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  background: transparent;
 }
-.notes-input::placeholder { color: #d7ccc8; }
+.pdf-editable-textarea:focus {
+  background: #ffffff; /* Se face alb când scrii */
+}
+.pdf-editable-textarea::placeholder {
+  color: #a0bec4;
+  font-style: italic;
+}
 
-.doc-footer-styled { text-align: center; padding: 20px; font-size: 0.75rem; color: #b0bec5; background: #fcfdfe; border-top: 1px solid #f0f0f0; }
+.doc-footer-styled { 
+    text-align: center; padding: 20px; font-size: 0.75rem; color: #b0bec5; 
+    background: #fcfdfe; border-top: 1px solid #f0f0f0; 
+}
 
-.actions-row { text-align: right; margin-top: 20px; padding-right: 10px; }
+.actions-row { text-align: right; margin-top: 20px; }
 .btn-pdf-gradient {
   background: linear-gradient(135deg, #006266, #00a8ff);
-  color: white; border: none; padding: 12px 28px; border-radius: 50px;
-  font-weight: 600; font-size: 0.95rem; cursor: pointer;
-  box-shadow: 0 4px 15px rgba(0, 168, 255, 0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
+  color: white; border: none; padding: 12px 28px; 
+  border-radius: 50px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 168, 255, 0.3); transition: transform 0.2s;
 }
 .btn-pdf-gradient:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 168, 255, 0.4); }
-.btn-pdf-gradient:disabled { background: #ccc; box-shadow: none; transform: none;}
+.btn-pdf-gradient:disabled { background: #ccc; box-shadow: none; transform: none; }
 
 .empty-state { text-align: center; margin-top: 60px; color: #7f8c8d; }
+.empty-icon { font-size: 4rem; margin-bottom: 10px; }
 .btn-start { background: #2c3e50; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; display: inline-block; margin-top: 15px; }
 </style>
