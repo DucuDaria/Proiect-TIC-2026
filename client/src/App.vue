@@ -22,6 +22,14 @@ const handleLogout = async () => {
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/inspire" class="highlight-link">Inspiră-mă</RouterLink>
         <RouterLink to="/my-vacations">Vacanțele mele</RouterLink>
+
+        <RouterLink 
+          v-if="authStore.user?.email === 'admin@wanderlust.com'" 
+          to="/admin" 
+          class="admin-link"
+        >
+          Admin Panel
+        </RouterLink>
         
         <div class="user-menu">
           <div class="user-info">
@@ -58,6 +66,18 @@ nav {
 .links a { text-decoration: none; color: #7f8c8d; font-weight: 600; transition: 0.3s; }
 .links a:hover, .links a.router-link-active { color: #3498db; }
 .highlight-link { color: #e67e22 !important; }
+
+.admin-link {
+  color: #e74c3c !important; 
+  border: 1px solid #e74c3c;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background-color: #fff5f5;
+}
+.admin-link:hover {
+  background-color: #e74c3c !important;
+  color: white !important;
+}
 
 .user-menu { display: flex; align-items: center; gap: 15px; margin-left: 20px; border-left: 1px solid #ddd; padding-left: 20px; }
 .user-info { display: flex; align-items: center; gap: 8px; }

@@ -8,6 +8,7 @@ import LoginView from '../views/LoginView.vue'
 import MyVacationsView from '../views/MyVacationsView.vue'
 import InspireView from '../views/InspireView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import AdminView from '../views/AdminView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -51,6 +52,12 @@ const router = createRouter({
       name: 'inspire',
       component: InspireView,
       meta: { requiresAuth: true }
+    },
+    { 
+      path: '/admin', 
+      name: 'admin', 
+      component: AdminView, 
+      meta: { requiresAuth: true, requiresAdmin: true } 
     }
   ]
 })
@@ -62,6 +69,10 @@ router.beforeEach(async (to, from, next) => {
 
   const isPublic = to.name === 'login' || to.name === 'register';
   const isLoggedIn = authStore.isAuthenticated;
+  const isAdmin = authStore.user?.email === "admin@wanderlust.com";
+  if (to.meta.requiresAdmin && !isAdmin) {
+    return next('/');
+  }
   if (to.meta.requiresAuth && !isLoggedIn) {
     next('/login');
   } 

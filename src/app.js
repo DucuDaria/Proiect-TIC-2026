@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const config = require('./config/config');
 const db = require('./config/db');
 const destinationRoutes = require('./routes/destinationRoutes');
+const adminRoutes = require('./routes/adminRoutes'); 
 
 const app = express();
 app.use(morgan('dev'));
@@ -13,6 +14,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/destinations', destinationRoutes);
+app.use('/api/admin', adminRoutes); 
+
 app.get('/', (req, res) => {
   res.json({
     status: 'success',

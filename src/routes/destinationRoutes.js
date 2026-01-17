@@ -3,11 +3,14 @@ const destinationController = require('../controllers/destinationController');
 const { validateToken } = require('../middleware/auth');
 
 const router = express.Router();
+
 router.get('/my-vacations', validateToken, destinationController.getMyDestinations);
 router.route('/')
   .get(destinationController.getAllDestinations) 
   .post(validateToken, destinationController.createDestination); 
 router.route('/:id')
-  .get(destinationController.getDestinationById);
+  .get(destinationController.getDestinationById)
+  .put(validateToken, destinationController.updateDestination)    
+  .delete(validateToken, destinationController.deleteDestination); 
 
 module.exports = router;
