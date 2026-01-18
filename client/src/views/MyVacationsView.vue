@@ -1,16 +1,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useVacationStore } from '../stores/vacations'
 import html2pdf from 'html2pdf.js'
 
-const vacations = ref([]);
-const isLoading = ref(true);
-const isGenerating = ref(false);
-
-const editingId = ref(null);
-const editForm = ref({}); 
-
 const authStore = useAuthStore();
+const vacationStore = useVacationStore();
+
+const isGenerating = ref(false);
+const editingId = ref(null);
+const isCreating = ref(false); 
+const editForm = ref({}); 
 
 const currentEditTotal = computed(() => {
   if (!editForm.value.itinerary) return 0;
@@ -23,60 +23,104 @@ const currentEditTotal = computed(() => {
   return total;
 });
 
-const fetchMyVacations = async () => {
-  try {
-    const response = await fetch('http://localhost:3000/api/destinations/my-vacations', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}` 
-      }
-    });
+onMounted(() => {
+  vacationStore.fetchVacations();
+});
 
-    if (!response.ok) throw new Error("Eroare");
-    const result = await response.json();
-    vacations.value = result.data.reverse(); 
-  } catch (error) {
-    console.error(error);
-  } finally {
-    isLoading.value = false;
+const startCreate = () => {
+  isCreating.value = true;
+  editingId.value = 'NEW';
+  editForm.value = {
+    country: '',
+    totalDays: 3,
+    totalPrice: 0,
+    itinerary: { "1": [] }, 
+    notes: ''
+  };
+  setTimeout(() => {
+    const el = document.getElementById('create-area');
+    if(el) el.scrollIntoView({ behavior: 'smooth' });
+  }, 100);
+}
+
+const startEdit = (trip) => {
+  isCreating.value = false;
+  editingId.value = trip.id;
+  editForm.value = JSON.parse(JSON.stringify(trip));
+}
+
+const validateForm = () => {
+  if (!editForm.value.country || editForm.value.country.trim().length < 3) {
+    alert("Numele destinației este prea scurt.");
+    return false;
+  }
+  
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  let valid = true;
+
+  if (editForm.value.itinerary) {
+    Object.values(editForm.value.itinerary).forEach(items => {
+      items.forEach(item => {
+        if (!timeRegex.test(item.time)) {
+          alert(`Ora "${item.time}" este invalidă. Format necesar: HH:MM`);
+          valid = false;
+        }
+        if (!item.name) {
+          alert("Numele activității este obligatoriu.");
+          valid = false;
+        }
+        if (item.price < 0) {
+          alert("Prețul nu poate fi negativ.");
+          valid = false;
+        }
+      });
+    });
+  }
+  return valid;
+}
+
+const saveTrip = async () => {
+  if (!validateForm()) return;
+
+  try {
+    editForm.value.totalPrice = currentEditTotal.value;
+
+    if (isCreating.value) {
+      await vacationStore.addVacation(editForm.value);
+    } else {
+      await vacationStore.updateVacation(editForm.value.id, editForm.value);
+    }
+
+    cancelEdit();
+  } catch (e) {
+    alert(e.message);
   }
 }
 
 const deleteTrip = async (id) => {
   if (!confirm("Sigur vrei să ștergi vacanța?")) return;
-
   try {
-    const res = await fetch(`http://localhost:3000/api/destinations/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${authStore.token}` }
-    });
-
-    if (res.ok) {
-      vacations.value = vacations.value.filter(v => v.id !== id);
-    } else {
-      alert("Eroare la ștergere.");
-    }
+    await vacationStore.deleteVacation(id);
   } catch (e) {
-    console.error(e);
+    alert(e.message);
   }
 }
 
-const startEdit = (trip) => {
-  editingId.value = trip.id;
-  editForm.value = JSON.parse(JSON.stringify(trip));
+const cancelEdit = () => {
+  editingId.value = null;
+  isCreating.value = false;
+  editForm.value = {};
 }
 
 const addActivity = (dayKey) => {
   if (!editForm.value.itinerary[dayKey]) {
     editForm.value.itinerary[dayKey] = [];
   }
-  
   editForm.value.itinerary[dayKey].push({
     id: Date.now(),
     time: '10:00',
     name: '',
-    city: editForm.value.country,
+    city: editForm.value.country || '',
     price: 0
   });
 }
@@ -85,87 +129,15 @@ const removeActivity = (dayKey, index) => {
   editForm.value.itinerary[dayKey].splice(index, 1);
 }
 
-const validateForm = () => {
-  if (!editForm.value.country || editForm.value.country.trim().length < 3) {
-    alert("Numele destinației trebuie să aibă minim 3 caractere.");
-    return false;
-  }
-
-  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-  let isValid = true;
-
-  Object.entries(editForm.value.itinerary).forEach(([day, items]) => {
-    items.forEach((item, idx) => {
-      if (!timeRegex.test(item.time)) {
-        alert(`Ziua ${day}: Ora "${item.time}" este invalidă. Folosește formatul HH:MM.`);
-        isValid = false;
-      }
-      if (!item.name || item.name.trim() === '') {
-        alert(`Ziua ${day}: Numele activității nu poate fi gol.`);
-        isValid = false;
-      }
-      if (item.price < 0) {
-        alert(`Ziua ${day}: Prețul nu poate fi negativ.`);
-        isValid = false;
-      }
-    });
-  });
-
-  return isValid;
+const addDay = () => {
+  const currentDays = Object.keys(editForm.value.itinerary).length;
+  editForm.value.itinerary[(currentDays + 1).toString()] = [];
+  editForm.value.totalDays = currentDays + 1;
 }
-
-const saveEdit = async () => {
-  if (!validateForm()) return;
-
-  try {
-    editForm.value.totalPrice = currentEditTotal.value;
-
-    const res = await fetch(`http://localhost:3000/api/destinations/${editForm.value.id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authStore.token}`
-      },
-      body: JSON.stringify(editForm.value)
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      if(result.errors) {
-        alert(result.errors.join('\n'));
-      } else {
-        alert(result.message || "Eroare");
-      }
-      return;
-    }
-
-    const index = vacations.value.findIndex(v => v.id === editForm.value.id);
-    if (index !== -1) {
-      vacations.value[index] = { ...editForm.value };
-    }
-    
-    editingId.value = null;
-    
-  } catch (e) {
-    console.error(e);
-    alert("Eroare la salvare.");
-  }
-}
-
-const cancelEdit = () => {
-  editingId.value = null;
-  editForm.value = {};
-}
-
-onMounted(() => {
-  fetchMyVacations();
-});
 
 const exportToPDF = (trip) => {
-  isGenerating.value = true
-  const element = document.getElementById(`trip-card-${trip.id}`)
-  
+  isGenerating.value = true;
+  const element = document.getElementById(`trip-card-${trip.id}`);
   const opt = {
     margin: 10,
     filename: `Jurnal_${trip.country}.pdf`,
@@ -173,10 +145,7 @@ const exportToPDF = (trip) => {
     html2canvas: { scale: 2, useCORS: true, letterRendering: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
-
-  html2pdf().set(opt).from(element).save().then(() => {
-    isGenerating.value = false
-  })
+  html2pdf().set(opt).from(element).save().then(() => isGenerating.value = false);
 }
 </script>
 
@@ -184,23 +153,86 @@ const exportToPDF = (trip) => {
   <div class="page-container">
     <div class="header-section">
       <h1 class="page-title">Jurnal de călătorie</h1>
-      <p class="subtitle">Toate aventurile tale, într-un singur loc.</p>
+      <p class="subtitle">Gestionează aventurile tale.</p>
+      
+      <button @click="startCreate" class="btn-create-main" v-if="!isCreating">
+        + Adaugă Vacanță Nouă
+      </button>
     </div>
 
-    <div v-if="isLoading" class="empty-state">
-      <h3>Se încarcă vacanțele...</h3>
+    <div v-if="isCreating" id="create-area" class="trip-wrapper creating-mode">
+      <div class="printable-area aesthetic-card">
+        <div class="ticket-header-gradient new-entry">
+          <div class="header-content-overlay">
+            <span class="brand-name">INTRARE NOUĂ</span>
+            <span class="brand-sub">Completează detaliile</span>
+          </div>
+        </div>
+        
+        <div class="trip-hero">
+          <div class="edit-hero">
+             <label class="edit-label">Destinație</label>
+             <input v-model="editForm.country" class="input-edit-lg" placeholder="Ex: Grecia">
+          </div>
+        </div>
+
+        <div class="itinerary-section">
+          <div v-for="(items, day) in editForm.itinerary" :key="day">
+            <div class="day-container">
+              <div class="day-header-styled">
+                  <span class="day-number">ZIUA {{ day }}</span>
+                  <span class="day-line"></span>
+              </div>
+              <div class="timeline">
+                <div v-for="(item, idx) in items" :key="idx" class="timeline-item">
+                    <div class="edit-row">
+                      <div class="edit-col small">
+                        <label>Oră</label>
+                        <input v-model="item.time" class="input-edit-sm" placeholder="10:00">
+                      </div>
+                      <div class="edit-col grow">
+                        <label>Activitate</label>
+                        <input v-model="item.name" class="input-edit" placeholder="Activitate">
+                      </div>
+                      <div class="edit-col grow">
+                          <label>Oraș</label>
+                          <input v-model="item.city" class="input-edit" placeholder="Oraș">
+                      </div>
+                      <div class="edit-col small">
+                        <label>Preț</label>
+                        <input type="number" v-model="item.price" class="input-edit-sm" min="0">
+                      </div>
+                      <button @click="removeActivity(day, idx)" class="btn-remove-item">&times;</button>
+                    </div>
+                </div>
+              </div>
+              <div class="add-activity-wrapper">
+                <button @click="addActivity(day)" class="btn-add-activity">Adaugă activitate</button>
+              </div>
+            </div>
+          </div>
+          <button @click="addDay" class="btn-dashed mt-2">+ Adaugă Ziua Următoare</button>
+        </div>
+
+        <div class="actions-row">
+          <button @click="saveTrip" class="btn-action save">Creează Vacanța</button>
+          <button @click="cancelEdit" class="btn-action cancel">Anulează</button>
+        </div>
+      </div>
     </div>
 
-    <div v-else-if="vacations.length === 0" class="empty-state">
-      <h3>Încă nu ai nicio aventură planificată.</h3>
-      <RouterLink to="/inspire" class="btn-start">Inspiră-mă</RouterLink>
+    <div v-if="vacationStore.isLoading" class="empty-state">
+      <h3>Se încarcă...</h3>
+    </div>
+
+    <div v-else-if="vacationStore.vacations.length === 0 && !isCreating" class="empty-state">
+      <h3>Nu ai vacanțe salvate.</h3>
     </div>
 
     <div v-else class="vacations-list">
-      <div v-for="trip in vacations" :key="trip.id" class="trip-wrapper">
+      <div v-for="trip in vacationStore.vacations" :key="trip.id" class="trip-wrapper">
         
         <div :id="`trip-card-${trip.id}`" class="printable-area aesthetic-card">
-          
           <div class="ticket-header-gradient">
             <div class="header-content-overlay">
               <div class="logo-area">
@@ -208,7 +240,7 @@ const exportToPDF = (trip) => {
                 <span class="brand-sub">Travel journal</span>
               </div>
               <div class="ticket-meta">
-                <span class="meta-label">BOOKING ID</span>
+                <span class="meta-label">ID</span>
                 <span class="meta-value">#{{ trip.id.toString().slice(0, 6).toUpperCase() }}</span>
               </div>
             </div>
@@ -230,36 +262,25 @@ const exportToPDF = (trip) => {
           </div>
             
           <div class="price-compact-section">
-            <div class="price-label-box">
-                Costuri estimate
-            </div>
+            <div class="price-label-box">Costuri estimate</div>
             <div class="price-row">
               <div class="price-item">
-                <span class="p-type">Total (Calculat)</span>
-                
-                <span v-if="editingId !== trip.id" class="p-val highlight-blue">
-                  {{ trip.totalPrice }} €
-                </span>
-                
-                <span v-else class="p-val highlight-blue">
-                   {{ currentEditTotal }} €
-                </span>
+                <span class="p-type">Total</span>
+                <span v-if="editingId !== trip.id" class="p-val highlight-blue">{{ trip.totalPrice }} €</span>
+                <span v-else class="p-val highlight-blue">{{ currentEditTotal }} €</span>
               </div>
             </div>
           </div>
 
           <div class="itinerary-section">
             <div v-for="(items, day) in (editingId === trip.id ? editForm.itinerary : trip.itinerary)" :key="day">
-              
               <div v-if="(items && items.length > 0) || editingId === trip.id" class="day-container">
                 <div class="day-header-styled">
                     <span class="day-number">ZIUA {{ day }}</span>
                     <span class="day-line"></span>
                 </div>
-                
                 <div class="timeline">
                   <div v-for="(item, idx) in items" :key="idx" class="timeline-item">
-                    
                     <template v-if="editingId !== trip.id">
                       <div class="time-col">{{ item.time }}</div>
                       <div class="event-col">
@@ -274,71 +295,58 @@ const exportToPDF = (trip) => {
                     <template v-else>
                       <div class="edit-row">
                         <div class="edit-col small">
-                          <label>Oră (HH:MM)</label>
-                          <input v-model="item.time" class="input-edit-sm" placeholder="14:00">
+                          <label>Oră</label>
+                          <input v-model="item.time" class="input-edit-sm">
                         </div>
                         <div class="edit-col grow">
                           <label>Activitate</label>
-                          <input v-model="item.name" class="input-edit" placeholder="Activitate">
+                          <input v-model="item.name" class="input-edit">
                         </div>
                         <div class="edit-col grow">
                             <label>Oraș</label>
-                            <input v-model="item.city" class="input-edit" placeholder="Oraș">
+                            <input v-model="item.city" class="input-edit">
                         </div>
                         <div class="edit-col small">
-                          <label>Preț (€)</label>
+                          <label>Preț</label>
                           <input type="number" v-model="item.price" class="input-edit-sm" min="0">
                         </div>
-                        <button @click="removeActivity(day, idx)" class="btn-remove-item">
-                          &times;
-                        </button>
+                        <button @click="removeActivity(day, idx)" class="btn-remove-item">&times;</button>
                       </div>
                     </template>
-
                   </div>
                 </div>
-
                 <div v-if="editingId === trip.id" class="add-activity-wrapper">
-                  <button @click="addActivity(day)" class="btn-add-activity">
-                    Adaugă activitate
-                  </button>
+                  <button @click="addActivity(day)" class="btn-add-activity">Adaugă activitate</button>
                 </div>
-
               </div>
+            </div>
+            <div v-if="editingId === trip.id">
+              <button @click="addDay" class="btn-dashed mt-2">+ Adaugă Ziua Următoare</button>
             </div>
           </div>
 
           <div class="notes-wrapper">
-            <div class="section-header-small">Jurnal și notițe</div>
+            <div class="section-header-small">Notițe</div>
             <div class="aesthetic-notes-box">
-               <textarea 
-                  v-if="editingId === trip.id"
-                  v-model="editForm.notes" 
-                  class="pdf-editable-textarea active-edit"
-                  placeholder="Scrie notițele aici..."
-               ></textarea>
-               <div v-else class="pdf-readonly-text">
-                 {{ trip.notes || "Nu ai adăugat notițe încă." }}
-               </div>
+               <textarea v-if="editingId === trip.id" v-model="editForm.notes" class="pdf-editable-textarea active-edit"></textarea>
+               <div v-else class="pdf-readonly-text">{{ trip.notes || "Fără notițe." }}</div>
             </div>
           </div>
 
           <div class="doc-footer-styled">
-            Generat de Wanderlust Planner pentru {{ authStore.user?.email }}
+            Generat de Wanderlust Planner
           </div>
         </div>
 
         <div class="actions-row">
           <div v-if="editingId === trip.id" class="edit-group">
-            <button @click="saveEdit" class="btn-action save">Salvează</button>
+            <button @click="saveTrip" class="btn-action save">Salvează</button>
             <button @click="cancelEdit" class="btn-action cancel">Anulează</button>
           </div>
           <div v-else class="view-group">
             <button @click="startEdit(trip)" class="btn-action edit">Editează</button>
             <button @click="deleteTrip(trip.id)" class="btn-action delete">Șterge</button>
-            <button @click="exportToPDF(trip)" class="btn-pdf-gradient" :disabled="isGenerating">
-              {{ isGenerating ? '...' : 'PDF' }}
-            </button>
+            <button @click="exportToPDF(trip)" class="btn-pdf-gradient" :disabled="isGenerating">PDF</button>
           </div>
         </div>
 
@@ -350,42 +358,22 @@ const exportToPDF = (trip) => {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
 
-.page-container { 
-    max-width: 850px; 
-    margin: 0 auto; 
-    padding: 40px 20px; 
-    font-family: 'Poppins', sans-serif; 
-    color: #333; 
-    background-color: #f4f7f9; 
-}
+.page-container { max-width: 850px; margin: 0 auto; padding: 40px 20px; font-family: 'Poppins', sans-serif; color: #333; background-color: #f4f7f9; }
 .header-section { text-align: center; margin-bottom: 40px; }
 .page-title { font-weight: 700; color: #2c3e50; font-size: 2.2rem; margin: 0; }
 .subtitle { color: #607d8b; margin-top: 5px; }
 
+.btn-create-main { background: #3498db; color: white; border: none; padding: 12px 30px; font-size: 1rem; font-weight: 600; border-radius: 50px; cursor: pointer; margin-top: 20px; transition: 0.3s; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
+.btn-create-main:hover { background: #2980b9; transform: translateY(-2px); }
+
 .trip-wrapper { margin-bottom: 60px; }
-.aesthetic-card {
-  background: white;
-  border-radius: 16px; 
-  box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
-  overflow: hidden;
-  position: relative;
-  border: none;
-}
+.creating-mode { border: 2px dashed #3498db; padding: 20px; border-radius: 20px; background: #eaf6ff; }
+.aesthetic-card { background: white; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); overflow: hidden; position: relative; border: none; }
 
-.ticket-header-gradient {
-  background: linear-gradient(135deg, #2c3e50, #3498db); 
-  color: white; 
-  padding: 25px 40px;
-  position: relative;
-}
+.ticket-header-gradient { background: linear-gradient(135deg, #2c3e50, #3498db); color: white; padding: 25px 40px; position: relative; }
+.ticket-header-gradient.new-entry { background: linear-gradient(135deg, #27ae60, #2ecc71); }
 
-.header-content-overlay {
-    position: relative; z-index: 2;
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center;
-}
-
+.header-content-overlay { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; }
 .logo-area { display: flex; align-items: center; gap: 10px; }
 .brand-name { font-weight: 700; font-size: 1.2rem; letter-spacing: 1px; display: block; line-height: 1; }
 .brand-sub { font-weight: 300; font-size: 0.75rem; opacity: 0.8; letter-spacing: 0.5px; display: block; }
@@ -394,32 +382,16 @@ const exportToPDF = (trip) => {
 .meta-value { font-family: monospace; font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; }
 
 .trip-hero { padding: 30px 40px 20px; }
-.destination-title { 
-  font-size: 3rem; margin: 0 0 10px 0; color: #2c3e50; 
-  text-transform: uppercase; letter-spacing: -1.5px; font-weight: 800;
-  background: -webkit-linear-gradient(45deg, #2c3e50, #3498db);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+.destination-title { font-size: 3rem; margin: 0 0 10px 0; color: #2c3e50; text-transform: uppercase; letter-spacing: -1.5px; font-weight: 800; background: -webkit-linear-gradient(45deg, #2c3e50, #3498db); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .trip-info-row { display: flex; gap: 12px; }
-.info-badge { 
-  font-size: 0.85rem; padding: 6px 14px; border-radius: 20px; font-weight: 600;
-}
+.info-badge { font-size: 0.85rem; padding: 6px 14px; border-radius: 20px; font-weight: 600; }
 .blue-badge { background: #e3f2fd; color: #1565c0; }
 .green-badge { background: #e8f5e9; color: #2e7d32; }
 
 .edit-label { display: block; font-size: 0.8rem; color: #999; margin-bottom: 5px; }
-.input-edit-lg { 
-    font-size: 2rem; font-weight: 700; color: #2c3e50; width: 100%; 
-    border: 1px dashed #3498db; padding: 5px; border-radius: 4px; 
-}
+.input-edit-lg { font-size: 2rem; font-weight: 700; color: #2c3e50; width: 100%; border: 1px dashed #3498db; padding: 5px; border-radius: 4px; }
 
-.price-compact-section {
-  margin: 0 40px 30px; padding: 15px 25px;
-  background-color: #f8f9fa; border-radius: 12px;
-  display: flex; align-items: center; justify-content: space-between;
-  border: 1px solid #edf2f7;
-}
+.price-compact-section { margin: 0 40px 30px; padding: 15px 25px; background-color: #f8f9fa; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #edf2f7; }
 .price-label-box { font-size: 0.75rem; font-weight: 700; color: #607d8b; text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
 .p-val { font-weight: 700; color: #455a64; font-size: 1.1rem; }
 .highlight-blue { color: #00a8ff; } 
@@ -452,6 +424,7 @@ const exportToPDF = (trip) => {
 .btn-remove-item { background: #e74c3c; color: white; border: none; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; margin-left: 5px; }
 .add-activity-wrapper { text-align: center; margin-top: 10px; }
 .btn-add-activity { background: transparent; border: 1px dashed #3498db; color: #3498db; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+.btn-dashed { width: 100%; border: 1px dashed #95a5a6; color: #7f8c8d; padding: 10px; cursor: pointer; background: transparent; }
 
 .notes-wrapper { padding: 0 40px 40px; page-break-inside: avoid; }
 .section-header-small { font-size: 0.75rem; font-weight: 700; color: #546e7a; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
@@ -474,5 +447,5 @@ const exportToPDF = (trip) => {
 .btn-pdf-gradient { background: #2c3e50; color: white; border: none; padding: 10px 25px; border-radius: 50px; font-weight: 600; cursor: pointer; }
 
 .empty-state { text-align: center; margin-top: 60px; color: #7f8c8d; }
-.btn-start { background: #2c3e50; color: white; padding: 10px 20px; border-radius: 4px; text-decoration: none; display: inline-block; margin-top: 15px; }
+.mt-2 { margin-top: 15px; }
 </style>
