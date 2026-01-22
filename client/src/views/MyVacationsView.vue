@@ -11,6 +11,8 @@ const isGenerating = ref(false);
 const editingId = ref(null);
 const isCreating = ref(false); 
 const editForm = ref({}); 
+const errors = ref({});
+const formStatus = ref('');
 
 const currentEditTotal = computed(() => {
   if (!editForm.value.itinerary) return 0;
@@ -30,6 +32,8 @@ onMounted(() => {
 const startCreate = () => {
   isCreating.value = true;
   editingId.value = 'NEW';
+  errors.value = {};
+  formStatus.value = '';
   editForm.value = {
     country: '',
     totalDays: 3,
@@ -46,41 +50,53 @@ const startCreate = () => {
 const startEdit = (trip) => {
   isCreating.value = false;
   editingId.value = trip.id;
+  errors.value = {};
+  formStatus.value = '';
   editForm.value = JSON.parse(JSON.stringify(trip));
 }
 
 const validateForm = () => {
-  if (!editForm.value.country || editForm.value.country.trim().length < 3) {
-    alert("Numele destinației este prea scurt.");
-    return false;
-  }
-  
-  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-  let valid = true;
+  errors.value = {};
+  let isValid = true;
 
+  if (!editForm.value.country || editForm.value.country.trim().length < 3) {
+    errors.value.country = "Minim 3 caractere";
+    isValid = false;
+  }
+
+  const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  
   if (editForm.value.itinerary) {
-    Object.values(editForm.value.itinerary).forEach(items => {
-      items.forEach(item => {
+    Object.entries(editForm.value.itinerary).forEach(([day, items]) => {
+      items.forEach((item, idx) => {
         if (!timeRegex.test(item.time)) {
-          alert(`Ora "${item.time}" este invalidă. Format necesar: HH:MM`);
-          valid = false;
+          if(!errors.value[day]) errors.value[day] = {};
+          errors.value[day][idx] = { ...errors.value[day]?.[idx], time: "HH:MM" };
+          isValid = false;
         }
-        if (!item.name) {
-          alert("Numele activității este obligatoriu.");
-          valid = false;
+        if (!item.name || item.name.trim() === '') {
+          if(!errors.value[day]) errors.value[day] = {};
+          errors.value[day][idx] = { ...errors.value[day]?.[idx], name: "Obligatoriu" };
+          isValid = false;
         }
-        if (item.price < 0) {
-          alert("Prețul nu poate fi negativ.");
-          valid = false;
+        if (item.price < 0 || item.price === "") {
+          if(!errors.value[day]) errors.value[day] = {};
+          errors.value[day][idx] = { ...errors.value[day]?.[idx], price: "Invalid" };
+          isValid = false;
         }
       });
     });
   }
-  return valid;
+
+  return isValid;
 }
 
 const saveTrip = async () => {
-  if (!validateForm()) return;
+  formStatus.value = '';
+  if (!validateForm()) {
+    formStatus.value = 'Verifică câmpurile marcate cu roșu.';
+    return;
+  }
 
   try {
     editForm.value.totalPrice = currentEditTotal.value;
@@ -90,10 +106,9 @@ const saveTrip = async () => {
     } else {
       await vacationStore.updateVacation(editForm.value.id, editForm.value);
     }
-
     cancelEdit();
   } catch (e) {
-    alert(e.message);
+    alert("Eroare server: " + e.message);
   }
 }
 
@@ -110,6 +125,8 @@ const cancelEdit = () => {
   editingId.value = null;
   isCreating.value = false;
   editForm.value = {};
+  errors.value = {};
+  formStatus.value = '';
 }
 
 const addActivity = (dayKey) => {
@@ -120,7 +137,7 @@ const addActivity = (dayKey) => {
     id: Date.now(),
     time: '10:00',
     name: '',
-    city: editForm.value.country || '',
+    city: '', 
     price: 0
   });
 }
@@ -172,7 +189,13 @@ const exportToPDF = (trip) => {
         <div class="trip-hero">
           <div class="edit-hero">
              <label class="edit-label">Destinație</label>
-             <input v-model="editForm.country" class="input-edit-lg" placeholder="Ex: Grecia">
+             <input 
+               v-model="editForm.country" 
+               class="input-edit-lg" 
+               :class="{ 'error-input': errors.country }"
+               placeholder="Ex: Grecia"
+             >
+             <span v-if="errors.country" class="error-hint">{{ errors.country }}</span>
           </div>
         </div>
 
@@ -188,19 +211,19 @@ const exportToPDF = (trip) => {
                     <div class="edit-row">
                       <div class="edit-col small">
                         <label>Oră</label>
-                        <input v-model="item.time" class="input-edit-sm" placeholder="10:00">
+                        <input v-model="item.time" class="input-edit-sm" :class="{ 'error-input': errors[day]?.[idx]?.time }">
                       </div>
                       <div class="edit-col grow">
                         <label>Activitate</label>
-                        <input v-model="item.name" class="input-edit" placeholder="Activitate">
+                        <input v-model="item.name" class="input-edit" :class="{ 'error-input': errors[day]?.[idx]?.name }">
                       </div>
                       <div class="edit-col grow">
                           <label>Oraș</label>
-                          <input v-model="item.city" class="input-edit" placeholder="Oraș">
+                          <input v-model="item.city" class="input-edit">
                       </div>
                       <div class="edit-col small">
                         <label>Preț</label>
-                        <input type="number" v-model="item.price" class="input-edit-sm" min="0">
+                        <input type="number" v-model="item.price" class="input-edit-sm" min="0" :class="{ 'error-input': errors[day]?.[idx]?.price }">
                       </div>
                       <button @click="removeActivity(day, idx)" class="btn-remove-item">&times;</button>
                     </div>
@@ -215,6 +238,7 @@ const exportToPDF = (trip) => {
         </div>
 
         <div class="actions-row">
+          <span v-if="formStatus" class="status-msg">{{ formStatus }}</span>
           <button @click="saveTrip" class="btn-action save">Creează Vacanța</button>
           <button @click="cancelEdit" class="btn-action cancel">Anulează</button>
         </div>
@@ -252,7 +276,8 @@ const exportToPDF = (trip) => {
             </div>
             <div v-else class="edit-hero">
                <label class="edit-label">Destinație</label>
-               <input v-model="editForm.country" class="input-edit-lg" placeholder="Nume Țară">
+               <input v-model="editForm.country" class="input-edit-lg" :class="{ 'error-input': errors.country }">
+               <span v-if="errors.country" class="error-hint">{{ errors.country }}</span>
             </div>
 
             <div class="trip-info-row">
@@ -296,11 +321,11 @@ const exportToPDF = (trip) => {
                       <div class="edit-row">
                         <div class="edit-col small">
                           <label>Oră</label>
-                          <input v-model="item.time" class="input-edit-sm">
+                          <input v-model="item.time" class="input-edit-sm" :class="{ 'error-input': errors[day]?.[idx]?.time }">
                         </div>
                         <div class="edit-col grow">
                           <label>Activitate</label>
-                          <input v-model="item.name" class="input-edit">
+                          <input v-model="item.name" class="input-edit" :class="{ 'error-input': errors[day]?.[idx]?.name }">
                         </div>
                         <div class="edit-col grow">
                             <label>Oraș</label>
@@ -308,7 +333,7 @@ const exportToPDF = (trip) => {
                         </div>
                         <div class="edit-col small">
                           <label>Preț</label>
-                          <input type="number" v-model="item.price" class="input-edit-sm" min="0">
+                          <input type="number" v-model="item.price" class="input-edit-sm" min="0" :class="{ 'error-input': errors[day]?.[idx]?.price }">
                         </div>
                         <button @click="removeActivity(day, idx)" class="btn-remove-item">&times;</button>
                       </div>
@@ -340,6 +365,7 @@ const exportToPDF = (trip) => {
 
         <div class="actions-row">
           <div v-if="editingId === trip.id" class="edit-group">
+            <span v-if="formStatus" class="status-msg">{{ formStatus }}</span>
             <button @click="saveTrip" class="btn-action save">Salvează</button>
             <button @click="cancelEdit" class="btn-action cancel">Anulează</button>
           </div>
@@ -357,6 +383,26 @@ const exportToPDF = (trip) => {
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+.error-input {
+  border: 1px solid #e74c3c !important;
+  box-shadow: 0 0 5px rgba(231, 76, 60, 0.2);
+}
+
+.error-hint {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 4px;
+  display: block;
+  font-style: italic;
+}
+
+.status-msg {
+  color: #e74c3c;
+  font-weight: 600;
+  margin-right: 15px;
+  font-size: 0.9rem;
+}
 
 .page-container { max-width: 850px; margin: 0 auto; padding: 40px 20px; font-family: 'Poppins', sans-serif; color: #333; background-color: #f4f7f9; }
 .header-section { text-align: center; margin-bottom: 40px; }
