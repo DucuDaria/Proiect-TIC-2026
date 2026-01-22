@@ -14,6 +14,29 @@ const editForm = ref({});
 const errors = ref({});
 const formStatus = ref('');
 
+// State pentru Filtrare și Sortare
+const searchQuery = ref('');
+const sortBy = ref('dateDesc');
+
+// Lista calculată automat (Filtrare + Sortare)
+const filteredVacations = computed(() => {
+  let result = [...vacationStore.vacations];
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    result = result.filter(v => v.country.toLowerCase().includes(query));
+  }
+
+  switch (sortBy.value) {
+    case 'priceAsc': result.sort((a, b) => a.totalPrice - b.totalPrice); break;
+    case 'priceDesc': result.sort((a, b) => b.totalPrice - a.totalPrice); break;
+    case 'dateAsc': result.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)); break;
+    case 'dateDesc': result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)); break;
+  }
+
+  return result;
+});
+
 const currentEditTotal = computed(() => {
   if (!editForm.value.itinerary) return 0;
   let total = 0;
@@ -175,6 +198,21 @@ const exportToPDF = (trip) => {
       <button @click="startCreate" class="btn-create-main" v-if="!isCreating">
         + Adaugă Vacanță Nouă
       </button>
+
+      <div class="filters-bar" v-if="!isCreating && vacationStore.vacations.length > 0">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input v-model="searchQuery" placeholder="Caută țară..." class="input-filter">
+        </div>
+        <div class="sort-box">
+          <select v-model="sortBy" class="select-filter">
+            <option value="dateDesc">Cele mai noi</option>
+            <option value="dateAsc">Cele mai vechi</option>
+            <option value="priceAsc">Preț crescător</option>
+            <option value="priceDesc">Preț descrescător</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <div v-if="isCreating" id="create-area" class="trip-wrapper creating-mode">
@@ -185,20 +223,13 @@ const exportToPDF = (trip) => {
             <span class="brand-sub">Completează detaliile</span>
           </div>
         </div>
-        
         <div class="trip-hero">
           <div class="edit-hero">
              <label class="edit-label">Destinație</label>
-             <input 
-               v-model="editForm.country" 
-               class="input-edit-lg" 
-               :class="{ 'error-input': errors.country }"
-               placeholder="Ex: Grecia"
-             >
+             <input v-model="editForm.country" class="input-edit-lg" :class="{ 'error-input': errors.country }" placeholder="Ex: Grecia">
              <span v-if="errors.country" class="error-hint">{{ errors.country }}</span>
           </div>
         </div>
-
         <div class="itinerary-section">
           <div v-for="(items, day) in editForm.itinerary" :key="day">
             <div class="day-container">
@@ -236,7 +267,6 @@ const exportToPDF = (trip) => {
           </div>
           <button @click="addDay" class="btn-dashed mt-2">+ Adaugă Ziua Următoare</button>
         </div>
-
         <div class="actions-row">
           <span v-if="formStatus" class="status-msg">{{ formStatus }}</span>
           <button @click="saveTrip" class="btn-action save">Creează Vacanța</button>
@@ -254,7 +284,7 @@ const exportToPDF = (trip) => {
     </div>
 
     <div v-else class="vacations-list">
-      <div v-for="trip in vacationStore.vacations" :key="trip.id" class="trip-wrapper">
+      <div v-for="trip in filteredVacations" :key="trip.id" class="trip-wrapper">
         
         <div :id="`trip-card-${trip.id}`" class="printable-area aesthetic-card">
           <div class="ticket-header-gradient">
@@ -384,26 +414,16 @@ const exportToPDF = (trip) => {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
 
-.error-input {
-  border: 1px solid #e74c3c !important;
-  box-shadow: 0 0 5px rgba(231, 76, 60, 0.2);
-}
+.filters-bar { display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+.search-box { position: relative; }
+.search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; opacity: 0.5; }
+.input-filter { padding: 10px 10px 10px 30px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 200px; transition: 0.3s; }
+.input-filter:focus { border-color: #3498db; box-shadow: 0 0 5px rgba(52, 152, 219, 0.2); }
+.select-filter { padding: 10px; border: 1px solid #ddd; border-radius: 20px; background: white; cursor: pointer; outline: none; }
 
-.error-hint {
-  color: #e74c3c;
-  font-size: 0.8rem;
-  margin-top: 4px;
-  display: block;
-  font-style: italic;
-}
-
-.status-msg {
-  color: #e74c3c;
-  font-weight: 600;
-  margin-right: 15px;
-  font-size: 0.9rem;
-}
-
+.error-input { border: 1px solid #e74c3c !important; box-shadow: 0 0 5px rgba(231, 76, 60, 0.2); }
+.error-hint { color: #e74c3c; font-size: 0.8rem; margin-top: 4px; display: block; font-style: italic; }
+.status-msg { color: #e74c3c; font-weight: 600; margin-right: 15px; font-size: 0.9rem; }
 .page-container { max-width: 850px; margin: 0 auto; padding: 40px 20px; font-family: 'Poppins', sans-serif; color: #333; background-color: #f4f7f9; }
 .header-section { text-align: center; margin-bottom: 40px; }
 .page-title { font-weight: 700; color: #2c3e50; font-size: 2.2rem; margin: 0; }
