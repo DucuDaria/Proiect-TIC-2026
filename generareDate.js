@@ -218,8 +218,6 @@ async function seedDatabase() {
     await collectionRef.add(docData);
     console.log(` Adăugat: ${countryData.country}`);
   }
-  
-  console.log('GATA! Acum ai imagini 100% funcționale.');
 }
 
 seedDatabase();

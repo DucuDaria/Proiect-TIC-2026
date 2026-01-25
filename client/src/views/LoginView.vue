@@ -66,7 +66,6 @@ const handleLogin = async () => {
 
       <div class="footer-links">
         <p>Nu ai cont? <RouterLink to="/register" class="link-accent">Înregistrează-te</RouterLink></p>
-        <RouterLink to="/" class="btn-back">← Înapoi la Dashboard</RouterLink>
       </div>
     </div>
   </div>
@@ -128,7 +127,7 @@ input {
   font-size: 1rem;
   outline: none;
   transition: border-color 0.3s;
-  box-sizing: border-box; /* Important pentru a nu depăși containerul */
+  box-sizing: border-box; 
 }
 
 input:focus {

@@ -162,8 +162,8 @@ onMounted(loadData);
           </div>
           
           <div class="form-grid">
-            <input v-model="form.country" placeholder="Nume Țară" class="input">
-            <input v-model="form.image" placeholder="URL Imagine Copertă" class="input">
+            <input v-model="form.country" placeholder="Nume țară" class="input">
+            <input v-model="form.image" placeholder="URL imagine copertă" class="input">
           </div>
           <textarea v-model="form.description" placeholder="Descriere..." class="input area"></textarea>
 
@@ -171,7 +171,7 @@ onMounted(loadData);
             <div v-for="(city, i) in form.cities" :key="i" class="city-row">
               <div class="city-inputs">
                 <input v-model="city.name" placeholder="Oraș" class="input sm">
-                <input v-model="city.image" placeholder="URL Poză" class="input sm">
+                <input v-model="city.image" placeholder="URL poză" class="input sm">
                 <button @click="removeCity(i)" class="btn-del">×</button>
               </div>
               <div class="attrs">
@@ -184,7 +184,7 @@ onMounted(loadData);
                 <button @click="addAttraction(i)" class="btn-link">+ Atracție</button>
               </div>
             </div>
-            <button @click="addCity" class="btn-dashed">Adaugă Oraș</button>
+            <button @click="addCity" class="btn-dashed">Adaugă oraș</button>
           </div>
 
           <button @click="submitForm" class="btn-primary full">{{ isEditing ? 'Salvează' : 'Publică' }}</button>
@@ -210,7 +210,7 @@ onMounted(loadData);
             <thead>
               <tr>
                 <th>Email</th>
-                <th>Dată Înregistrare</th>
+                <th>Dată înregistrare</th>
                 <th align="right">Istoric</th>
               </tr>
             </thead>

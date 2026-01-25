@@ -1,4 +1,5 @@
 const { admin, db } = require('../config/db');
+
 exports.getAllUsers = async (req, res) => {
   try {
     const listUsersResult = await admin.auth().listUsers(1000);

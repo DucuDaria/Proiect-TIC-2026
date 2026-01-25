@@ -1,7 +1,8 @@
 # Wanderlust Planner - Proiect TIC Ducu Daria Mihaela
 
-Aceasta este o aplicație destinată gestionării itinerariilor de călătorie. 
+Aplicație destinată gestionării itinerariilor de călătorie. 
 Utilizatorii pot crea, vizualiza, edita și șterge vacanțe, pot calcula costuri automat și pot exporta planurile în format PDF.
+Administratorul poate crea destinații și atracții noi, modificându-le pe cele existente în baza de date Firebase. De asemenea poate vizualiza utilizatorii și vacanțele lor.  
 
 ## Tehnologii Utilizate
 

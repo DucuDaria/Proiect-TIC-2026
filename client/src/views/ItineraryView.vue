@@ -14,7 +14,7 @@ const store = useTripStore()
 
     <div v-else>
       <div class="summary-card">
-        <h3>Total Estimativ: {{ store.totalPrice.toFixed(2) }} €</h3>
+        <h3>Total estimativ: {{ store.totalPrice.toFixed(2) }} €</h3>
         <p>Număr obiective: {{ store.items.length }}</p>
       </div>
 

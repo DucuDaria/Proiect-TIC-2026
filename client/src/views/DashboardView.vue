@@ -56,7 +56,7 @@ onMounted(async () => {
         :image="dest.image" 
       >
         <RouterLink :to="'/destination/' + dest.id" class="btn-simple">
-          Planifică Călătoria &rarr;
+          Planifică-ți călătoria &rarr;
         </RouterLink>
       </TripCard>
 

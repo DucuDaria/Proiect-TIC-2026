@@ -13,12 +13,8 @@ const isCreating = ref(false);
 const editForm = ref({}); 
 const errors = ref({});
 const formStatus = ref('');
-
-// State pentru Filtrare și Sortare
 const searchQuery = ref('');
 const sortBy = ref('dateDesc');
-
-// Lista calculată automat (Filtrare + Sortare)
 const filteredVacations = computed(() => {
   let result = [...vacationStore.vacations];
 
@@ -196,7 +192,7 @@ const exportToPDF = (trip) => {
       <p class="subtitle">Gestionează aventurile tale.</p>
       
       <button @click="startCreate" class="btn-create-main" v-if="!isCreating">
-        + Adaugă Vacanță Nouă
+        + Adaugă vacanță nouă
       </button>
 
       <div class="filters-bar" v-if="!isCreating && vacationStore.vacations.length > 0">

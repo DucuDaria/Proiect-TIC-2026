@@ -31,7 +31,7 @@ defineProps({
   background: white; 
   border-radius: 12px; 
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Umbră fină */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   display: flex; 
   flex-direction: column; 
@@ -45,7 +45,7 @@ defineProps({
 
 .image-wrapper {
   height: 200px;
-  background-color: #bdc3c7; /* Culoare de siguranță (gri) */
+  background-color: #bdc3c7; 
   background-size: cover; 
   background-position: center;
   position: relative;
